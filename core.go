@@ -67,7 +67,6 @@ func (core *Core) AuthFailed(sip, ip string) {
 	}
 }
 
-
 func (core *Core) getFail(ip string) *Fail {
 	core.failsMu.Lock()
 	defer core.failsMu.Unlock()
@@ -77,6 +76,34 @@ func (core *Core) getFail(ip string) *Fail {
 	fail := NewFail(ip)
 	core.Fails = append(core.Fails, fail)
 	return fail
+}
+
+func (core *Core) UnbanTemporaryBannedRoutine(scanInterval, maxAge time.Duration) {
+	for {
+		time.Sleep(scanInterval)
+		core.failsMu.Lock()
+		for _, fail := range core.Fails {
+			if fail.TemporaryBannedAt.IsZero() { continue }
+			if fail.TemporaryBannedAt.Add(maxAge).Before(time.Now()) {
+				if err := core.Firewall.UnbanIP(fail.IP); err != nil { continue }
+				DebugLog.Printf("Unbanned temporary %s", fail.IP)
+				go core.RemoveFail(fail.IP) // must be executed with 'go' otherwise will be deadlock
+				core.Banned.Remove(fail.IP)
+			}
+		}
+		core.failsMu.Unlock()
+	}
+}
+
+func (core *Core) RemoveFail(ip string) {
+	core.failsMu.Lock()
+	defer core.failsMu.Unlock()
+	newFails := make([]*Fail, 0)
+	for _, fail := range core.Fails {
+		if fail.IP == ip { continue }
+		newFails = append(newFails, fail)
+	}
+	core.Fails = newFails
 }
 
 

@@ -77,6 +77,16 @@ func (firewall *Firewall) BanIP(ip string, banned *Banned) error {
 	return nil
 }
 
+func (firewall *Firewall) UnbanIP(ip string) error {
+	cmd := exec.Command(`ipset`, `del`, firewall.IpsetName, ip)
+	if err := cmd.Run(); err != nil {
+		ErrorLog.Println(ip, err.Error())
+		return err
+	}
+	return nil
+}
+
+
 func NewFirewall(ipsetName string) *Firewall {
 	firewall := Firewall{
 		IpsetName: ipsetName,

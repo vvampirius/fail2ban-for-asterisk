@@ -30,6 +30,15 @@ func (banned *Banned) Add(ip string, temporary bool) {
 	banned.IPs = append(banned.IPs, bannedIP)
 }
 
+func (banned *Banned) Remove(ip string) {
+	newBannedIPs := make([]BannedIP, 0)
+	for _, bannedIP := range banned.IPs {
+		if bannedIP.IP == ip { continue }
+		newBannedIPs = append(newBannedIPs, bannedIP)
+	}
+	banned.IPs = newBannedIPs
+}
+
 
 func NewBanned() *Banned {
 	banned := Banned{

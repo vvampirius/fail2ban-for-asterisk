@@ -10,9 +10,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"time"
 )
 
-const VERSION  = `0.2`
+const VERSION  = `0.3`
 
 var (
 	ErrorLog = log.New(os.Stderr, `error#`, log.Lshortfile)
@@ -40,6 +41,8 @@ func main() {
 		os.Exit(0)
 	}
 
+	DebugLog.Printf("Started version %s", VERSION)
+
 	firewall := NewFirewall(*ipsetName)
 	if !firewall.IsIpsetListExist() {
 		if err := firewall.AddIpsetList(); err != nil {
@@ -62,5 +65,6 @@ func main() {
 	}
 
 	core := NewCore(firewall)
+	go core.UnbanTemporaryBannedRoutine(time.Minute, time.Hour)
 	core.ReadLog(log)
 }
