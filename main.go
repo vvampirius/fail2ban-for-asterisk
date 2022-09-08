@@ -1,7 +1,3 @@
-// ipset create asterisk_ban hash:ip
-// iptables -A INPUT -m set --match-set asterisk_ban src -j DROP
-// ipset add asterisk_ban 40.89.131.67
-
 package main
 
 import (
