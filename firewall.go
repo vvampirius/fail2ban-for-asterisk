@@ -6,7 +6,11 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"regexp"
+	"strconv"
 )
+
+var RegexpIpsetEntries = regexp.MustCompile(`Number of entries: (\d+)`)
 
 type Firewall struct {
 	IpsetName string
@@ -84,6 +88,36 @@ func (firewall *Firewall) UnbanIP(ip string) error {
 		return err
 	}
 	return nil
+}
+
+func (firewall *Firewall) IpsetEntries() float64 {
+	cmd := exec.Command(`ipset`, `list`, firewall.IpsetName)
+	response, err := cmd.Output()
+	if err != nil {
+		ErrorLog.Println(err)
+		return 0
+	}
+	buffer := bytes.NewBuffer(response)
+	reader := bufio.NewReader(buffer)
+	for {
+		line, err := reader.ReadString('\n')
+		match := RegexpIpsetEntries.FindStringSubmatch(line)
+		if len(match) == 2 {
+			n, err := strconv.ParseFloat(match[1], 32)
+			if err != nil {
+				ErrorLog.Println(err)
+				return 0
+			}
+			return n
+		}
+		if err != nil {
+			if err != io.EOF {
+				ErrorLog.Println(err)
+			}
+			break
+		}
+	}
+	return 0
 }
 
 

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"regexp"
 	"sync"
@@ -19,6 +20,7 @@ type Core struct {
 	failsMu sync.Mutex
 	Banned *Banned
 	Firewall *Firewall
+	Metrics *Metrics
 }
 
 func (core *Core) ReadLog(r io.Reader) {
@@ -40,6 +42,7 @@ func (core *Core) ReadLine(line string) {
 }
 
 func (core *Core) AuthFailed(sip, ip string) {
+	core.Metrics.FailedToAuthenticate.Inc()
 	fail := core.getFail(ip)
 	fail.AddAttempt(sip)
 	far := fail.GetAttempts(5 * time.Minute)
@@ -52,6 +55,7 @@ func (core *Core) AuthFailed(sip, ip string) {
 			fail.TemporaryBannedAt = time.Now()
 			DebugLog.Printf("Temporary banned %s (%v)", fail.IP, far.SIP)
 			core.Banned.Add(fail.IP, true)
+			core.Metrics.Banned.With(prometheus.Labels{`type`: `temporary`}).Inc()
 		}
 	} else {
 		if far.Sum >= 3 {
@@ -63,6 +67,7 @@ func (core *Core) AuthFailed(sip, ip string) {
 			}
 			DebugLog.Printf("Permanently banned %s", fail.IP)
 			core.Banned.Add(fail.IP, false)
+			core.Metrics.Banned.With(prometheus.Labels{`type`: `permanent`}).Inc()
 		}
 	}
 }
@@ -107,11 +112,12 @@ func (core *Core) RemoveFail(ip string) {
 }
 
 
-func NewCore(firewall *Firewall) *Core {
+func NewCore(firewall *Firewall, metrics *Metrics) *Core {
 	core := Core{
 		Fails: make([]*Fail, 0),
 		Banned: NewBanned(),
 		Firewall: firewall,
+		Metrics: metrics,
 	}
 	return &core
 }

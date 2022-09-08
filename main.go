@@ -8,12 +8,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"os/exec"
 	"time"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-const VERSION  = `0.3`
+const VERSION  = `0.4`
 
 var (
 	ErrorLog = log.New(os.Stderr, `error#`, log.Lshortfile)
@@ -28,6 +30,7 @@ func helpText() {
 func main() {
 	help := flag.Bool("h", false, "print this help")
 	ver := flag.Bool("v", false, "Show version")
+	listen := flag.String("l", "127.0.0.1:8080", "Listen HTTP on address")
 	ipsetName := flag.String("ipset-name", "asterisk_ban", "List name of ipset")
 	flag.Parse()
 
@@ -55,7 +58,7 @@ func main() {
 		}
 	}
 
-	cmd := exec.Command(`journalctl`, `-u`, `asterisk`, `-f`)
+	cmd := exec.Command(`journalctl`, `-u`, `asterisk`, `-f`, `-n`, `0`)
 	log, err := cmd.StdoutPipe()
 	if err != nil {
 		ErrorLog.Fatalln(err)
@@ -64,7 +67,19 @@ func main() {
 		ErrorLog.Fatalln(err)
 	}
 
-	core := NewCore(firewall)
+	metrics, err := NewMetrics(firewall.IpsetEntries)
+	if err != nil {
+		os.Exit(1)
+	}
+
+	http.Handle("/metrics", promhttp.Handler())
+
+	core := NewCore(firewall, metrics)
 	go core.UnbanTemporaryBannedRoutine(time.Minute, time.Hour)
-	core.ReadLog(log)
+	go core.ReadLog(log)
+
+	server := http.Server{ Addr: *listen }
+	if err := server.ListenAndServe(); err != nil {
+		ErrorLog.Fatalln(err.Error())
+	}
 }
