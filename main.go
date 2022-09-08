@@ -12,7 +12,7 @@ import (
 	"os/exec"
 )
 
-const VERSION  = `0.1`
+const VERSION  = `0.2`
 
 var (
 	ErrorLog = log.New(os.Stderr, `error#`, log.Lshortfile)
@@ -27,6 +27,7 @@ func helpText() {
 func main() {
 	help := flag.Bool("h", false, "print this help")
 	ver := flag.Bool("v", false, "Show version")
+	ipsetName := flag.String("ipset-name", "asterisk_ban", "List name of ipset")
 	flag.Parse()
 
 	if *help {
@@ -39,6 +40,18 @@ func main() {
 		os.Exit(0)
 	}
 
+	firewall := NewFirewall(*ipsetName)
+	if !firewall.IsIpsetListExist() {
+		if err := firewall.AddIpsetList(); err != nil {
+			os.Exit(1)
+		}
+	}
+	if !firewall.IsIptablesRuleExist() {
+		if err := firewall.AddIptablesRule(); err != nil {
+			os.Exit(1)
+		}
+	}
+
 	cmd := exec.Command(`journalctl`, `-u`, `asterisk`, `-f`)
 	log, err := cmd.StdoutPipe()
 	if err != nil {
@@ -48,6 +61,6 @@ func main() {
 		ErrorLog.Fatalln(err)
 	}
 
-	core := NewCore()
+	core := NewCore(firewall)
 	core.ReadLog(log)
 }

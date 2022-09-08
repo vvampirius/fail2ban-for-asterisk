@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"io"
-	"os/exec"
 	"regexp"
 	"sync"
 	"time"
@@ -19,6 +18,7 @@ type Core struct {
 	Fails []*Fail
 	failsMu sync.Mutex
 	Banned *Banned
+	Firewall *Firewall
 }
 
 func (core *Core) ReadLog(r io.Reader) {
@@ -45,7 +45,7 @@ func (core *Core) AuthFailed(sip, ip string) {
 	far := fail.GetAttempts(5 * time.Minute)
 	if far.Uniq == 1 {
 		if far.Sum >= 20 {
-			if err := core.BanIP(fail.IP); err != nil {
+			if err := core.Firewall.BanIP(fail.IP, core.Banned); err != nil {
 				if err != ErrAlreadyBanned { ErrorLog.Printf("Can't temporary ban %s (%v)", fail.IP, far.SIP) }
 				return
 			}
@@ -55,7 +55,7 @@ func (core *Core) AuthFailed(sip, ip string) {
 		}
 	} else {
 		if far.Sum >= 3 {
-			if err := core.BanIP(fail.IP); err != nil {
+			if err := core.Firewall.BanIP(fail.IP, core.Banned); err != nil {
 				if err != ErrAlreadyBanned {
 					ErrorLog.Printf("Can't permanently ban %s", fail.IP)
 				}
@@ -67,17 +67,6 @@ func (core *Core) AuthFailed(sip, ip string) {
 	}
 }
 
-func (core *Core) BanIP(ip string) error {
-	if banned := core.Banned.Get(ip); banned != nil {
-		return ErrAlreadyBanned
-	}
-	cmd := exec.Command(`ipset`, `add`, `asterisk_ban`, ip)
-	if err := cmd.Run(); err != nil {
-		ErrorLog.Println(ip, err.Error())
-		return err
-	}
-	return nil
-}
 
 func (core *Core) getFail(ip string) *Fail {
 	core.failsMu.Lock()
@@ -91,10 +80,11 @@ func (core *Core) getFail(ip string) *Fail {
 }
 
 
-func NewCore() *Core {
+func NewCore(firewall *Firewall) *Core {
 	core := Core{
 		Fails: make([]*Fail, 0),
 		Banned: NewBanned(),
+		Firewall: firewall,
 	}
 	return &core
 }
