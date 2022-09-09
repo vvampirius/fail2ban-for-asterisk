@@ -1,0 +1,22 @@
+- name: Install a list of packages
+  apt:
+    pkg:
+    - ipset
+
+- name: Copy fail2ban-for-asterisk
+  ansible.builtin.copy:
+    src: files/fail2ban-for-asterisk
+    dest: /usr/local/sbin/fail2ban-for-asterisk
+    mode: '0744'
+
+- name: Copy systemd unit
+  ansible.builtin.copy:
+    src: files/fail2ban-for-asterisk.service
+    dest: /lib/systemd/system/fail2ban-for-asterisk.service
+    mode: '0644'
+
+- name: Ensure service is running
+  ansible.builtin.systemd:
+    enabled: yes
+    state: started
+    name: fail2ban-for-asterisk

@@ -1,0 +1,11 @@
+[Unit]
+Description=fail2ban-for-asterisk
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/fail2ban-for-asterisk
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
